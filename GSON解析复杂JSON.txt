@@ -1,0 +1,59 @@
+---
+date: 2016-03-19 11:06
+status: public
+tags: 'java, gson,工作中掉过的坑'
+title: GSON解析复杂JSON
+---
+
+```java
+//  {                                                             
+//    "brokerage": [                                              
+//      {                                                         
+//        "brokerageMode": "percentage",                          
+//        "brokerageType": "TechniqueFee",                        
+//        "brokerageVal": "3"                                     
+//      },                                                        
+//      {                                                         
+//        "brokerageMode": "percentage",                          
+//        "brokerageType": "LogisticsFee",                        
+//        "brokerageVal": "1.0"                                   
+//      },                                                        
+//      {                                                         
+//        "brokerageMode": "percentage",                          
+//        "brokerageType": "ChannelFee",                          
+//        "brokerageVal": "1.0"                                   
+//      }                                                         
+//    ],                                                          
+//    "goods": {                                                  
+//      "goodsImg": "/goods/195/010/000/000/000000010591_381.jpg",
+//      "goodsSn": "G080148F0235"                                 
+//    }                                                           
+//  
+ orderGoodsSnapshot = parser.parse(orderGoodsService.selectSnapshotById(brokerageView.getFogId())).getAsJsonObject();
+            brokerageArray = orderGoodsSnapshot.get("brokerage").getAsJsonArray();
+            if(!brokerageArray.isJsonNull()){
+                for (JsonElement element : brokerageArray) {
+                    if(!element.isJsonNull()){
+                        JsonObject obj=element.getAsJsonObject();
+                        if (obj.get("brokerageType") != null && "TechniqueFee".equals(obj.get("brokerageType").getAsString())){
+                            brokerageView.setTechniqueRage(obj.get("brokerageVal").getAsString());
+                        }
+                    }
+                }
+            }
+
+            //从订单快照中解析技术服务费折扣
+            orderSnapshot = parser.parse(orderService.selectSnapshotById(brokerageView.getId())).getAsJsonObject();
+            rebateArray = orderSnapshot.get("brokerage").getAsJsonObject().get("rebate").getAsJsonArray();
+            if(!rebateArray.isJsonNull()){
+                for (JsonElement element : rebateArray) {
+                    if(!element.isJsonNull()){
+                        JsonObject obj=element.getAsJsonObject();
+                        if("all".equals(obj.get("brokerageType").getAsString()) || "TechniqueFee".equals(obj.get("brokerageType").getAsString()) ){
+                            brokerageView.setTechniqueRebate(obj.get("rebateVal").getAsString());
+                        }
+                    }
+                }
+            }
+
+```

@@ -1,0 +1,30 @@
+---
+date: 2016-03-18 19:33
+status: public
+tags: 'java, spring,工作中掉过的坑'
+title: 'Spring MVC中接受数组类型入参'
+---
+
+#### 页面：
+```javascript
+RequestBatchDeleteCustomer= extend( RequestBase, function(customerIds)
+{
+    this.__super__.constructor(this);
+    this.url = "customer/batchDeleteCustomer";
+    this.method = "post";
+    this.contentType = "application/json";
+    var params = JSON.stringify(customerIds);
+    this.params = params;
+
+});
+```
+
+#### Server：
+```java
+@RequestMapping("/****")
+@ResponseBody 
+public Result<?> batchDeleteCustomer(@RequestBody Long[] customerIds) {
+    //doSth.
+}
+
+```

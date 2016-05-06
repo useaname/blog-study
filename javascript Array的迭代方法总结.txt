@@ -1,0 +1,80 @@
+---
+date: 2016-03-25 17:36
+status: public
+title: 'javascript Array的迭代和归并方法总结'
+---
+
+## 迭代方法
+```javascript every()```
+对数组中每一项运行给定函数，如果该函数每一项都返回true,则返回true。
+```javascript filter()```
+对数组中每一项运行给定函数，返回该函数会返回true的项组成的数组。
+```javascript forEach()```
+对数组中每一项运行给定函数，这个方法没有返回值。
+```javascript map()```
+对数组中每一项运行给定函数，返回每次函数调用结果组成的数组。
+```javascript some()```
+对数组中每一项运行给定函数，如果该函数对任一项返回true，则返回true。
+
+
+```javascript
+var num = [1,2,3,4,5,4,3,2,1];
+    var everyResult = num.every(function(item, index, array){
+        return (item > 2);
+    });
+    alert(everyResult);
+    var someResult = num.some(function(item, index, array){
+        return (item > 2);
+    });
+
+    var filterResult = num.filter(function(item, index, array){
+        return (item > 2);
+    });
+
+    /**
+     * 这个方法合适创建包含的项与
+     * 另一组数组一对一对应的数组
+     * @type {Array}
+     */
+    var mapResult = num.map(function(item, index, array){
+        return arguments[0] * 2;
+    });
+
+
+    num.forEach(function(item, index, array){
+        //执行某些操作
+    })
+```
+
+---
+## 归并方法
+
+```javascript 
+reduce()
+```
+ 接收四个参数，前一个值，当前值，项的索引，数组。
+这个函数返回的任何值都会作为第一个参数自动传给下一项。第一次迭代发生在数组的第二项上，因为第一次参数是数组的第一项，第二个参数是数组的第二项。
+
+```javascript
+    /**
+     * 使用reduce方法求数组内所有项之和
+     * @type {number[]}
+     */
+ var arr2 = [1, 2, 3, 4, 5, 6];
+    var sum = arr2.reduce(function (prev, cur, index, array) {
+        return prev + cur;
+    });
+console.log(sum);
+```
+
+```javascript
+reduceRight()
+```
+作用相似，不过是方向反过来遍历。
+```javascript
+ sum = arr.reduceRight(function (prev, cur, index, arry) {
+        return prev + cur;
+    });
+    console.log(sum)
+```
+

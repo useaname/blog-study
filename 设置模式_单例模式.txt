@@ -1,0 +1,192 @@
+---
+date: 2016-05-05 16:18
+status: public
+tags: java,设计模式,单例模式
+title: 设计模式_单例模式
+---
+
+在实际工作中，有些类没有自己的状态。这种类不论实例化多少个，都是一样的。更重要的是，这个类如果有两个或者两个以上的实例，程序会出现与逻辑相违背的错误。如果不将这样的类控制成单例结构，应用中会出现很多一模一样的实例，非常的浪费系统资源，容易导致或一定会导致错误。所以单例模式的目的是为了尽可能的节约内存空间，减少无谓的CG消耗，并且使应用正常工作。
+总结一下说，一个类能否做成单例，区别在于这些类，在应用中如果有两个或者以上的实例会引起错误，又换句话说，就是这些类，在整个应用中，同一时刻，有且只能有一种状态。
+实际中,很多应用级别的资源会被做成单例。比如配置文件信息，逻辑上来说，整个应用有且只有一个，当然有多个这可能并不能引起程序级别的错误。这里说的错误是error或异常。当我们试图改变配置文件的时候，问题就出来了。
+
+这时候有两种选择，第一，将所有的实例全部更新成一模一样的状态。第二，等着问题出现。
+然而出现的问题大部分是逻辑层次上的问题，这比程序上错误更加严重，因为他不会告诉你空指针，不会告诉你非法参数,很多需要等到影响客户试用时才会被发现。
+```java
+public class Singleton {
+
+    //一个静态的实例
+    private static Singleton singleton;
+    //私有化构造函数
+    private Singleton(){}
+    //给出一个公共的静态方法返回一个单一实例
+    public static Singleton getInstance(){
+        if (singleton == null) {
+            singleton = new Singleton();
+        }
+        return singleton;
+    }
+}
+```
+上面的是不考虑并发时情况下标准的单例构造方式。这个方式通过几个地方来限制我们取到实例是唯一的。
+1.静态实例，带有static关键字的属性在每一个类中都是唯一的；
+2.限制客户端随意创造实例，即私有化方法，此为保证单例最重要的一步;
+3.给一个公共的获取实例的静态方法,注意，是静态方法，因为这个方法是在我们未获取到实例的时候就要提供给客户端调用的，所以如果是非静态的话，那就变成一个矛盾体了，因为非静态方法必须要拥有实例才可以调用；
+4.判断只有持有静态实例为null时才调用构造方法创造一个实例，否则就直接返回。
+
+上面给出的例子在并发情况下是不安全的，下面给出一个并发的例子用来说明是有可能创造出多个实例的，
+```java
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public class TestSingleton {
+    
+    boolean lock ;
+    
+    public boolean isLock() {
+        return lock;
+    }
+
+    public void setLock(boolean lock) {
+        this.lock = lock;
+    }
+    
+    public static void main(String[] args) throws InterruptedException {
+        final Set<String> instanceSet = Collections.synchronizedSet(new HashSet<String>());
+        final TestSingleton lock = new TestSingleton();
+        lock.setLock(true);
+        ExecutorService executorService = Executors.newCachedThreadPool();
+        for (int i = 0; i < 100; i++) {
+            executorService.execute(new Runnable() {
+                
+                public void run() {
+                    while (true) {
+                        if (!lock.isLock()) {
+                            Singleton singleton = Singleton.getInstance();
+                            instanceSet.add(singleton.toString());
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+        Thread.sleep(5000);
+        lock.setLock(false);
+        Thread.sleep(5000);
+        System.out.println("------并发情况下我们取到的实例------");
+        for (String instance : instanceSet) {
+            System.out.println(instance);
+        }
+        executorService.shutdown();
+    }
+}
+```
+上面的程序中开启了100个线程去访问getInstance方法，且把获得实例的toString方法获取的实例字符串转给你一个同步的set集合，set集合会自动去重，所以看如果加过输出两个或者以上，说明在并发访问过程中产生了多个实例。
+程序中让main线程睡眠了两次,第一次是为了给足够的时间让100线程全部开启，第二个是将锁打开后，保证所有的线程都已经调用了getInstance方法。
+造成这种情况的原因是，当并发访问的时候，第一个调用getInstance方法的线程A，在判断完singleton是null的时候，线程A就进入了if块准备创建实例，但同时另外一个线程B在线程A还创造出实例之前，就又进行singleton是否为null判断，这时singleton依然为null，现在线程B也会进入if块去创造实例，这是问题就出现了，有两个线程都要去创造实例，结果就造成了单例模式非单例模式。
+
+为了避免这种情况，需要考虑并发的情况，最容易的方式就是下面这样，直接将整个方法同步。
+```java
+public class BadSynchronizedSingleton {
+
+    //一个静态的实例
+    private static BadSynchronizedSingleton synchronizedSingleton;
+    //私有化构造函数
+    private BadSynchronizedSingleton(){}
+    //给出一个公共的静态方法返回一个单一实例
+    public synchronized static BadSynchronizedSingleton getInstance(){
+        if (synchronizedSingleton == null) {
+            synchronizedSingleton = new BadSynchronizedSingleton();
+        }
+        return synchronizedSingleton;
+    }
+    
+}
+```
+上面的代码将整个方法同步，这样在一个线程方式这个方法时，其他所有线程都要处于等待的状态，虽然避免了同步访问创造出多个实例的危险，但是这样造成了很多无谓的等待。
+其实我们同步的地方只是需要发生在单例的实例还未创建的时候，在实例创建以后，获取实例的方法就没有必要再进行同步控制了，所以改成如下模式：
+```java
+public class SynchronizedSingleton {
+
+    //一个静态的实例
+    private static SynchronizedSingleton synchronizedSingleton;
+    //私有化构造函数
+    private SynchronizedSingleton(){}
+    //给出一个公共的静态方法返回一个单一实例
+    public static SynchronizedSingleton getInstance(){
+        if (synchronizedSingleton == null) {
+            synchronized (SynchronizedSingleton.class) {
+                if (synchronizedSingleton == null) {
+                    synchronizedSingleton = new SynchronizedSingleton();
+                }
+            }
+        }
+        return synchronizedSingleton;
+    }
+}
+```
+这样一来，我们只是在当前实例为null，也就是在实例还未创建时才进行同步，否则就直接返回。这样节省了很多无谓的等待时间。值得注意的是我们再次判断了synchronizedSingleton是否为null，解释下为什么要这样做。
+假设我们去掉同步块中的是否为null的判断，有这样一种情况，假设A线程和B线程都在同步块外面判断了synchronizedSingleton为null，结果A线程首先获得了线程锁，进入了同步块，然后A线程会创造一个实例，此时synchronizedSingleton已经被赋予了实例，A线程退出同步块，直接返回了第一个创造的实例，此时B线程获得线程锁，也进入同步块，此时A线程其实已经创造好了实例，B线程正常情况应该直接返回的，但是因为同步块里没有判断是否为null，直接就是一条创建实例的语句，所以B线程也会创造一个实例返回，此时就造成创造了多个实例的情况。
+经过刚才的分析，貌似上述双重加锁的示例看起来是没有问题了，但如果再进一步深入考虑的话，其实仍然是有问题的。
+如果我们深入到JVM中去探索上面这段代码，它就有可能（注意，只是有可能）是有问题的。
+因为虚拟机在执行创建实例的这一步操作的时候，其实是分了好几步去进行的，也就是说创建一个新的对象并非是原子性操作。在有些JVM中上述做法是没有问题的，但是有些情况下是会造成莫名的错误。
+首先要明白在JVM创建新的对象时，主要要经过三步。
+1.分配内存
+2.初始化构造器
+3.将对象指向分配的内存的地址
+这种顺序在上述双重加锁的方式是没有问题的，因为这种情况下JVM是完成了整个对象的构造才将内存的地址交给了对象。但是如果2和3步骤是相反的（2和3可能是相反的是因为JVM会针对字节码进行调优，而其中的一项调优便是调整指令的执行顺序），就会出现问题了。
+ 因为这时将会先将内存地址赋给对象，针对上述的双重加锁，就是说先将分配好的内存地址指给synchronizedSingleton，然后再进行初始化构造器，这时候后面的线程去请求getInstance方法时，会认为synchronizedSingleton对象已经实例化了，直接返回一个引用。如果在初始化构造器之前，这个线程使用了synchronizedSingleton，就会产生莫名的错误。
+所以我们在语言级别无法完全避免错误的发生，我们只有将该任务交给JVM，所以有一种比较标准的单例模式。如下所示。
+```java
+package com.oneinstance;
+
+public class InnerClassSingleton {
+    
+    public static Singleton getInstance(){
+        return Singleton.singleton;
+    }
+
+    private static class Singleton{
+        
+        protected static Singleton singleton = new Singleton();
+        
+    }
+}
+```
+ 首先来说一下，这种方式为何会避免了上面莫名的错误，主要是因为一个类的静态属性只会在第一次加载类时初始化，这是JVM帮我们保证的，所以我们无需担心并发访问的问题。所以在初始化进行一半的时候，别的线程是无法使用的，因为JVM会帮我们强行同步这个过程。另外由于静态变量只初始化一次，所以singleton仍然是单例的。
+ ```java
+public class Singleton {
+    
+    private Singleton(){}
+    
+    public static Singleton getInstance(){
+        return SingletonInstance.instance;
+    }
+    
+    private static class SingletonInstance{
+        
+        static Singleton instance = new Singleton();
+        
+    }
+} 
+ ```
+好了，进行到这里，单例模式算是已经完成了。最终的产物就是如上述的形式。上述形式保证了以下几点。
+1.Singleton最多只有一个实例，在不考虑反射强行突破访问限制的情况下。
+2.保证了并发访问的情况下，不会发生由于并发而产生多个实例。
+3.保证了并发访问的情况下，不会由于初始化动作未完全完成而造成使用了尚未正确初始化的实例。
+以下为不太常用的方式，这里给出来只是给各位参考，不建议使用下述方式。
+第一种，就是俗称的饿汉式加载。
+```java
+public class Singleton {
+    private static Singleton singleton = new Singleton();
+    private Singleton(){}
+    public static Singleton getInstance(){
+        return singleton;
+    }
+}
+
+```
+上述方式与我们最后一种给出的方式类似，只不过没有经过内部类处理，这种方式最主要的缺点就是一旦我访问了Singleton的任何其他的静态域，就会造成实例的初始化，而事实是可能我们从始至终就没有使用这个实例，造成内存的浪费。
+不过在有些时候，直接初始化单例的实例也无伤大雅，对项目几乎没什么影响，比如我们在应用启动时就需要加载的配置文件等，就可以采取这种方式去保证单例。

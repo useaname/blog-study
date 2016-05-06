@@ -1,0 +1,115 @@
+---
+date: 2016-01-10 22:13
+status: public
+tags: 'javascript,sticky header,特效'
+title: '仿淘宝首页搜索栏Sticky Header实现'
+---
+
+不久前接到需求，做一个被嵌入到App的html页面，要求处于页面中间选择按钮被滚动到屏幕顶部时停止滚动，悬浮再整个页面上方，页面继续滚动。当页面反向滚动时，该选择按钮回到初始位置。
+
+~~妈个鸡，让俺一个html标签认不全的后端来写页面真的合适么！！！~~
+
+随后打开谷歌一顿找。搜索栏键入"淘宝搜索栏特效"之类的字眼根本找不到，出来一堆不相关的。抱着试试看的心情去了amazeui的主页，并在"JS插件"一栏中[找到了"sticky"][sticky]。正是想要的。这下就好办了。google搜"sticky demo"。一堆答案等着点开。有救了。 T T
+在amazeui主页已经给出了解决方案，但是工程中未使用amazeui，用不了API只有另想办法。
+不少插件能支持sticky。开发人员只要绑定元素，调用方法即可。这儿就不写了。
+找到一个通过原生javascript实现:
+##### HTML：
+```html
+<div class="header">
+  <h1>My big company!</h1>
+</div>
+<ul class="menu">
+  <li><a href="#">Home</a></li>
+  <li>
+    <a href="#">Services</a></li>
+  <li>
+    <a href="#">Portfolio</a></li>
+  <li>
+    <a href="#">About</a></li>
+</ul>
+<div class="container">
+  <p>长安街知事发现，朱之文毕业后就在厦大工作，从团委副书记一直干到省教育厅长，履新教育部前，还先后当过厦大和复旦的党委书记。不过，他可不仅仅是一位资深的高校党务工作者，在他的从政生涯中，有一段短暂而特殊的经历，那就是出任宁德市委书记。
+
+宁德，位于福建省东北沿海，环境优美，是全国知名的度假胜地。1999年，宁德撤地设市。此前，当地“一把手”称地委书记，此后称市委书记。1988年到1990年，习总就曾担任过宁德地委书记。
+
+朱之文到宁德上任时，送他去的人，是时任福建省委组织部常务副部长于伟国，如今已是福建省长。朱之文到任宁德后一年，正值当地党代会召开，他再次当选市委书记，当时他有一段表态，跟当前从严治党的要求颇为吻合，他说：“新一届班子务必要正确对待权利、地位和个人利益，带头遵守领导干部廉洁自律各项规定，做到不正之风不染、不义之财不取、不法之事不为，在任何情况下都抗得住诱惑，经得住考验，以清正廉明的良好形象影响和带动广大干部群众。”
+
+朱之文素来低调，媒体曝光度并不高，同事回忆他的工作要求是须从全局高度来做局部工作，服务全局。别看对工作要求高，据说朱书记有和人称兄道弟的豪爽和亲和力。《厦门日报》曾报道称，朱的前同事说，如果他有段时间没见你，再见你时，会拍着你的肩膀问:兄弟，最近好吗？下属每次加班到深夜，他会说:兄弟，辛苦了！听了这样的“客气话”，下属们“疲劳消失了一大半”。</p>
+</div>
+
+```
+##### CSS：
+```css
+body {
+   margin: 0; 
+}
+
+.header {
+    height: 100px;
+    background-color: #ddcbaf;
+    text-align: center;
+}
+
+.header h1 {
+    margin-top: 0;
+    padding-top: 20px;
+}
+
+.menu {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    background-color: #BFFFF3;
+}
+
+.menu li {
+    display: inline-block;
+    text-align: center;
+    width: 25%;
+}
+
+.menu li:hover,
+.menu li:focus {
+    background-color: #66FFE3;
+}
+
+.menu a {
+    display: block;
+    padding: 10px 0;
+    text-decoration: none;
+}
+
+.sticky {
+    top: 0;
+    position: fixed;
+}
+
+.container {
+  padding: 0 20px;
+  color: #989898;
+}
+```
+##### JAVASCRIPT：
+```javascript
+var menu = document.querySelector('.menu');
+var menuPosition = menu.getBoundingClientRect();
+var placeholder = document.createElement('div');
+placeholder.style.width = menuPosition.width + 'px';
+placeholder.style.height = menuPosition.height + 'px';
+var isAdded = false;
+
+window.addEventListener('scroll', function() {
+    if (window.pageYOffset >= menuPosition.top && !isAdded) {
+        menu.classList.add('sticky');
+        menu.parentNode.insertBefore(placeholder, menu);
+        isAdded = true;
+    } else if (window.pageYOffset < menuPosition.top && isAdded) {
+        menu.classList.remove('sticky');
+        menu.parentNode.removeChild(placeholder);
+        isAdded = false;
+    }
+});
+```
+demo地址 [http://runjs.cn/code/gzqpgpnb] [demo1]
+[demo1]: http://runjs.cn/code/gzqpgpnb "demo"
+[sticky]: http://amazeui.org/javascript/sticky?_ver=2.x "sticky"

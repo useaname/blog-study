@@ -1,0 +1,565 @@
+---
+date: 2016-01-14 17:17
+status: public
+tags: 'java,apache poi,excel'
+title: 'POI Excel工具类实现'
+---
+
+基于Apache POI excel工具类
+```java
+import org.apache.poi.hssf.usermodel.*;
+import org.apache.poi.hssf.util.Region;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletResponse;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.regex.Pattern;
+
+/**
+ * Created by chengxiaoqi on 15/9/24.
+ */
+public class ExcelUtils {
+    static Logger log = LoggerFactory.getLogger(ExcelUtils.class);
+
+    public final static int PAGE_HEIGHT_DEFAULT = 140;  //一般订单打印纸高度 140毫米
+
+
+//    static Pattern PAT_ASC = Pattern.compile("^[A-Za-z0-9 \\-./+]+$");  //字母或半角字符
+//    static Pattern PAT_FULL_1 = Pattern.compile("^[\u4e00-\u9fa5]+$");  //判断是否为全角
+//    static Pattern PAT_FULL_2 = Pattern.compile("[^x00-xff]$");  //全角符号及中文
+    static Pattern PAT_PARTNER = Pattern.compile("^[A-Za-z0-9]$");  //连续出现，excel认为是单词组成部分的字符
+
+    /**
+     * startRow和endRow间单页的票据右端联
+     *
+     * @param outputSheet
+     * @param startRow
+     * @param endRow
+     * @param PAGE_HEIGHT
+     * @param MAX_COL
+     */
+    public static void noteOnRightSideOne(HSSFSheet outputSheet, int startRow, int endRow, int PAGE_HEIGHT, int MAX_COL, String ticketInfo, int needHeight) {
+        int prefixHeight = (PAGE_HEIGHT - needHeight) / 2; //页宽-占用的宽度
+        startRow--; //回退一行
+        while (prefixHeight > 0 && startRow < endRow) {
+            startRow++;
+            prefixHeight -= outputSheet.getRow(startRow).getHeight();//每减一次少一行实际高度的距离
+        }
+        int toRow = startRow;
+
+        while (needHeight > 0 && toRow < endRow) {
+            toRow++;
+            needHeight -= outputSheet.getRow(toRow).getHeight();
+        }
+        //补足行高
+        if (needHeight > 0) {
+            short beHeight = (short) (outputSheet.getRow(endRow).getHeight() + needHeight);
+            HSSFRow row = outputSheet.getRow(endRow);
+            row.setHeight(beHeight);
+            //拉高的行内容要调整使用靠上对齐
+            for (int i = 0; i < row.getLastCellNum(); i++) {
+                row.getCell(i).getCellStyle().setVerticalAlignment(HSSFCellStyle.VERTICAL_TOP);
+            }
+        }
+        //补充不存在的单元格
+        for (int i = startRow; i <= toRow; i++) {
+            HSSFRow aRow = outputSheet.getRow(i);
+            if (aRow == null) {
+                aRow = outputSheet.createRow(i);
+            }
+            HSSFCell aCell = aRow.getCell(MAX_COL);
+            if (aCell == null) {
+                aRow.createCell(MAX_COL);
+            }
+        }
+        HSSFCell  aCell=outputSheet.getRow(startRow).getCell(MAX_COL);
+        aCell.setCellValue(ticketInfo);
+        HSSFCellStyle style =  outputSheet.getWorkbook().createCellStyle();
+        style.cloneStyleFrom(aCell.getCellStyle());
+        style.setVerticalAlignment(HSSFCellStyle.VERTICAL_CENTER);
+        style.setAlignment(HSSFCellStyle.ALIGN_CENTER);
+        style.setBorderLeft(HSSFCellStyle.BORDER_HAIR);
+        style.setWrapText(true);
+        HSSFFont font =  outputSheet.getWorkbook().createFont(); //style.getFont(outputSheet.getWorkbook());
+        font.setFontHeightInPoints((short) 8);
+        font.setFontName("宋体");
+        style.setFont(font);
+        aCell.setCellStyle(style);
+
+        style = outputSheet.getWorkbook().createCellStyle();
+        style.cloneStyleFrom(aCell.getCellStyle());
+        style.setBorderLeft(HSSFCellStyle.BORDER_HAIR);
+        for (int y = startRow; y <= toRow; y++) {
+            outputSheet.getRow(y).getCell(MAX_COL).setCellStyle(style);
+        }
+        CellRangeAddress note = new CellRangeAddress(startRow, toRow, MAX_COL, MAX_COL);
+        outputSheet.addMergedRegion(note);
+        outputSheet.setColumnWidth(MAX_COL, 600);
+    }
+
+    /**
+     * minRow和maxRow间多页的票据右端联
+     *
+     * @param outputSheet
+     * @param minRow
+     * @param maxRow
+     * @param PAGE_HEIGHT
+     * @param MAX_COL
+     */
+    public static void noteOnRightSide(int minRow, int maxRow, int PAGE_HEIGHT, int MAX_COL, HSSFSheet outputSheet,String ticketInfo, int needHeight) {
+        int[] breaks = outputSheet.getRowBreaks();
+        boolean minAdded = false;
+        boolean maxAdded = false;
+        List<Integer> breakLists = new ArrayList<>();
+        if (breaks != null && breaks.length >= 0) {
+            for (int i = 0; i < breaks.length; i++) {
+                if (breaks[i] >= minRow) {
+                    if (!minAdded) {
+                        breakLists.add(minRow - 1);
+                        minAdded = true;
+                    }
+                    breakLists.add(breaks[i]);
+                } else if (breaks[i] >= maxRow) {
+                    if (!maxAdded) {
+                        breakLists.add(maxRow);
+                        maxAdded = true;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!minAdded) {
+            breakLists.add(minRow - 1);
+        }
+        if (!maxAdded) {
+            breakLists.add(maxRow);
+        }
+
+        int startBreakIndex = 0;
+        while (startBreakIndex < breakLists.size() - 1) {
+            noteOnRightSideOne(outputSheet, breakLists.get(startBreakIndex) + 1, breakLists.get(startBreakIndex + 1), PAGE_HEIGHT, MAX_COL,ticketInfo, needHeight);
+            startBreakIndex++;
+        }
+    }
+
+    /**
+     * 获取模板中的行数
+     *
+     * @param sourceSheet
+     * @return
+     */
+    public static int findRowCount(HSSFSheet sourceSheet) {
+        int count = 0;
+        int maxRow=sourceSheet.getLastRowNum();
+        while (count < maxRow) {
+            if ("END".equals(sourceSheet.getRow(count).getCell(0).getStringCellValue())) {
+                count--;
+                break;
+            }
+            count++;
+        }
+        if(count==maxRow){
+            count--;
+        }
+        return count;
+    }
+
+    /**
+     * 获取模板中最后页应包含的最少的行数
+     * @param sourceSheet
+     * @param maxRows 模板的最大行数
+     * @return 没找到，返回 -1
+     */
+    public static int findLastTableMinRow(HSSFSheet sourceSheet, int maxRows) {
+        int count = 0;
+        int maxRow=sourceSheet.getLastRowNum();
+        while (count < maxRow) {
+            HSSFRow aRow=sourceSheet.getRow(count);
+            if (aRow != null) {
+                HSSFCell aCell=aRow.getCell(0);
+                if(aCell!=null && "LST".equals(aCell.getStringCellValue())){
+                    aCell.setCellValue("");
+                    count--;
+                    break;
+                }
+            }
+            count++;
+        }
+        if(count==maxRow){
+            count=1;
+        }else{
+            count=maxRows-count;
+        }
+        return count;
+    }
+
+    /**
+     * 获取模板中标识联的列位置
+     * @param sourceSheet
+     * @param row
+     * @return 没找到，返回-1
+     */
+    public static int findMarkCol(HSSFSheet sourceSheet,int row) {
+        HSSFRow aRow=sourceSheet.getRow(row);
+        if(aRow==null) return -1;
+        int maxCol=aRow.getLastCellNum();
+        int count = 0;
+        while (count < maxCol) {
+            HSSFCell aCell=aRow.getCell(count);
+            if(aCell!=null && "MARK_COL".equals(aCell.getStringCellValue())){
+                break;
+            }
+            count++;
+        }
+        if(maxCol==count){
+            count=-1;
+        }
+        return count;
+    }
+
+
+    /**
+     * 复制行内内容
+     *
+     * @param wb
+     * @param pSourceSheetName
+     * @param pTargetSheetName
+     * @param pStartRow
+     * @param pEndRow
+     * @param pPosition
+     */
+    public static void copyRows(HSSFWorkbook wb, String pSourceSheetName,
+                                String pTargetSheetName, int pStartRow, int pEndRow, int pPosition) {
+        HSSFRow sourceRow = null;
+        HSSFRow targetRow = null;
+        HSSFCell sourceCell = null;
+        HSSFCell targetCell = null;
+        HSSFSheet sourceSheet = null;
+        HSSFSheet targetSheet = null;
+        Region region = null;
+        int cType;
+        int i;
+        int j;
+        int targetRowFrom;
+        int targetRowTo;
+
+        if ((pStartRow == -1) || (pEndRow == -1)) {
+            return;
+        }
+        sourceSheet = wb.getSheet(pSourceSheetName);
+        targetSheet = wb.getSheet(pTargetSheetName);
+        // 拷贝合并的单元格
+        for (i = 0; i < sourceSheet.getNumMergedRegions(); i++) {
+            region = sourceSheet.getMergedRegionAt(i);
+            if ((region.getRowFrom() >= pStartRow)
+                    && (region.getRowTo() <= pEndRow)) {
+                targetRowFrom = region.getRowFrom() - pStartRow + pPosition;
+                targetRowTo = region.getRowTo() - pStartRow + pPosition;
+                region.setRowFrom(targetRowFrom);
+                region.setRowTo(targetRowTo);
+                targetSheet.addMergedRegion(region);
+            }
+        }
+        // 设置列宽
+        if (pPosition == 0) {
+            for (j = 0; j < 100; j++) {
+                //log.debug("==================>>" + j + sourceSheet.getColumnWidth(j));
+                targetSheet.setColumnHidden(j, false);
+                targetSheet.setColumnWidth(j, sourceSheet.getColumnWidth(j));
+            }
+        }
+        // 拷贝行并填充数据
+        for (i = pStartRow; i <= pEndRow; i++) {
+            sourceRow = sourceSheet.getRow(i);
+            if (sourceRow == null) {
+                continue;
+            }
+            targetRow = targetSheet.createRow(i - pStartRow + pPosition);
+            targetRow.setHeight(sourceRow.getHeight());
+            for (j = sourceRow.getFirstCellNum(); j < sourceRow
+                    .getPhysicalNumberOfCells(); j++) {
+                sourceCell = sourceRow.getCell(j);
+                if (sourceCell == null) {
+                    continue;
+                }
+                targetCell = targetRow.createCell(j);
+                targetCell.setCellStyle(sourceCell.getCellStyle());
+                cType = sourceCell.getCellType();
+                targetCell.setCellType(cType);
+                //log.debug("width:----->"+i+","+targetSheet.getColumnWidth(2)+"");
+                switch (cType) {
+                    case HSSFCell.CELL_TYPE_BOOLEAN:
+                        targetCell.setCellValue(sourceCell.getBooleanCellValue());
+                        break;
+                    case HSSFCell.CELL_TYPE_ERROR:
+                        targetCell
+                                .setCellErrorValue(sourceCell.getErrorCellValue());
+                        break;
+                    case HSSFCell.CELL_TYPE_FORMULA:
+                        // parseFormula这个函数的用途在后面说明
+                        targetCell.setCellFormula(parseFormula(sourceCell
+                                .getCellFormula()));
+                        break;
+                    case HSSFCell.CELL_TYPE_NUMERIC:
+                        targetCell.setCellValue(sourceCell.getNumericCellValue());
+                        break;
+                    case HSSFCell.CELL_TYPE_STRING:
+                        targetCell
+                                .setCellValue(sourceCell.getRichStringCellValue());
+                        break;
+                }
+
+            }
+
+        }
+    }
+
+    private static String parseFormula(String pPOIFormula) {
+        final String cstReplaceString = "ATTR(semiVolatile)"; //$NON-NLS-1$
+        StringBuffer result = null;
+        int index;
+
+        result = new StringBuffer();
+        index = pPOIFormula.indexOf(cstReplaceString);
+        if (index >= 0) {
+            result.append(pPOIFormula.substring(0, index));
+            result.append(pPOIFormula.substring(index
+                    + cstReplaceString.length()));
+        } else {
+            result.append(pPOIFormula);
+        }
+        return result.toString();
+    }
+
+
+    /**
+     * 对sheet做分页处理，右边加上联标识
+     * @param sheet 要处理的sheet对象
+     * @param firstRow sheet中哪一行开始算本页第一行
+     * @param PAGE_HEIGHT  页高，一般以标准每行280单位计数
+     * @param lastPageMinRow  最后页应该有的最少行数
+     */
+    public static void commonPageDeal(HSSFSheet sheet, int firstRow, final int PAGE_HEIGHT, int lastPageMinRow, int markCol, String ticketInfo, int needHeight){
+        int aPageHeight=0;
+        int lastPageBreak=firstRow-1;
+        int cRowCount=sheet.getLastRowNum();
+        for(int i=firstRow;i<=cRowCount;i++){
+            short rowHeight=sheet.getRow(i).getHeight();
+            aPageHeight += rowHeight;
+            if(aPageHeight > PAGE_HEIGHT){
+                lastPageBreak = i-1;
+                sheet.setRowBreak(lastPageBreak);
+                aPageHeight = rowHeight;
+            }
+        }
+        //每单最后页内容必须有指定行数的内容
+        if(lastPageMinRow>1 && cRowCount-firstRow>lastPageMinRow && cRowCount-lastPageBreak<lastPageMinRow){
+            sheet.removeRowBreak(lastPageBreak);
+            sheet.setRowBreak(cRowCount-lastPageMinRow);
+        }
+
+        //每页右边的单联标识
+        if(markCol>0) {
+            ExcelUtils.noteOnRightSide(firstRow, cRowCount, PAGE_HEIGHT, markCol, sheet, ticketInfo, needHeight);
+        }
+    }
+
+    public static void styleMoneyCell(Cell moneyCell){
+        if(moneyCell==null) return;
+        CellStyle style=moneyCell.getCellStyle();
+        style.setDataFormat((short)731);
+    }
+
+
+    public static void styleGoodsNameCell(Cell goodsNameCell){
+        if(goodsNameCell==null) return;
+        CellStyle style=goodsNameCell.getCellStyle();
+        style.setShrinkToFit(true);
+    }
+    public static Integer getExcelCellAutoHeight(String str, float fontCountInline) {
+        float contentLength = 0.00f;
+        for (int i = 0; i < str.length(); i++) {
+            float ff = getregex(str.substring(i, i + 1));
+            contentLength = contentLength + ff;
+        }
+            return ((int) (contentLength / fontCountInline) + 1);//计算
+    }
+
+    public static float getregex(String charStr) {
+    	return charStr.getBytes().length==1?0.5f:1.0f;
+//        // 判断是否为字母或字符
+//        if (PAT_ASC.matcher(charStr).matches()) {
+//            return 0.5f;
+//        }
+        // 判断是否为全角
+//        if (PAT_FULL_1.matcher(charStr).matches()) {
+//            return 1.00f;
+//        }
+//        //全角符号 及中文
+//        if (PAT_FULL_2.matcher(charStr).matches()) {
+//            return 1.00f;
+//        }
+//        return 0.5f;
+    }
+
+    public static void insertRow(HSSFSheet sheet, int startRow, int rows) {
+        sheet.shiftRows(startRow, sheet.getLastRowNum(), rows, true, false);
+        HSSFRow sourceRow = sheet.getRow(startRow + rows); //模板行
+        HSSFRow targetRow = null;
+        HSSFCell targetCell = null;
+        HSSFCell sourceCell = null;
+        for (int i = 0; i < rows; i++) {
+            targetRow = sheet.createRow(startRow + i);
+            targetRow.setHeight(sourceRow.getHeight());
+
+            for (int m = sourceRow.getFirstCellNum(); m < sourceRow.getPhysicalNumberOfCells(); m++) {
+            	targetCell = targetRow.createCell(m);
+            	sourceCell = sourceRow.getCell(m);
+                targetCell.setCellStyle(sourceCell.getCellStyle());
+                targetCell.setCellType(sourceCell.getCellType());
+            }
+        }
+    }
+
+    public static void getFile(String fileName,HSSFWorkbook wbModule,HttpServletResponse response,Logger logger){
+        Date date = new Date();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+        String time = sdf.format(date);
+        String filename = time + fileName;
+        try {
+            //页面 download
+            // 清空response
+            response.reset();
+            // 设置response的Header
+            response.setHeader("Content-Disposition", "attachment;filename=" + filename);
+            response.setContentType("application/vnd.ms-excel");
+            response.setCharacterEncoding("utf-8");
+            ServletOutputStream sos = response.getOutputStream();
+            wbModule.write(sos);
+            sos.flush();
+            sos.close();
+        } catch (Exception e) {
+            logger.error("",e);
+        }
+    }
+
+    /**
+     *将text在该换行处插入空格，使能自动换行
+     * @param text 需要处理的文本
+     * @param lineLen 一行显示的最多中文字符数
+     * @return 返回List 第一个元素：在换行处加上空格的商品名称 第二个元素:包含的行数
+     */
+    public static List wrapText(String text,float lineLen){
+        try {
+            if (text == null || "".equals(text)) {
+                text = " ";
+            }
+            List<TextInfo> infos= new ArrayList<TextInfo>();
+
+            boolean lastCharPart=false,curCharPart;
+            float count=0;
+            TextInfo curInfo=new TextInfo();
+
+            for (int i = 0; i < text.length(); i++) { //遍历text中每次字符的类型和不可分单词的长度
+                String aChar = text.substring(i, i + 1);
+                curCharPart = PAT_PARTNER.matcher(aChar).matches(); //是否连续不可分字符
+                float len = getregex(aChar); //返回当前字符的长度
+                if(curCharPart && lastCharPart){
+                    count+=len;
+                }else if(curCharPart){
+                    curInfo.position=i;
+                    count=len;
+                }else if(lastCharPart){
+                    curInfo.length = count;
+                    infos.add(curInfo);
+                    curInfo = new TextInfo();
+                    curInfo.position=i;
+                    curInfo.length=len;
+                    infos.add(curInfo);
+                    curInfo = new TextInfo();
+                }else{
+                    curInfo.position=i;
+                    curInfo.length = len;
+                    infos.add(curInfo);
+                    curInfo = new TextInfo();
+                }
+                lastCharPart=curCharPart;
+            }
+            //最后一个如果是不可分字符，需要单独加回
+            if(lastCharPart){
+                curInfo.length=count;
+                infos.add(curInfo);
+            }
+            //最后加一个空节点，方便后继计算
+            curInfo = new TextInfo();
+            curInfo.position= text.length();
+            curInfo.length = 0;
+            infos.add(curInfo);
+
+
+            int rowCount=0;
+            StringBuilder buffer= new StringBuilder();
+            count=0;
+            for(int i=0;i<infos.size()-1;i++){
+                curInfo = infos.get(i);
+                if(count+curInfo.length>lineLen){
+                    if(curInfo.length<lineLen){
+                        buffer.append(text.substring(curInfo.position,infos.get(i+1).position));
+                        count = curInfo.length;
+                    }else{
+                        int nextPos=infos.get(i+1).position;
+                        for(int j=curInfo.position;j<nextPos;j++){
+                            float len =getregex(text.substring(j,j+1));
+                            count +=len ;
+                            if(count>lineLen){
+                                buffer.append(" ");
+                                count=len;
+                            }
+                            buffer.append(text.substring(j,j+1));
+                        }
+                    }
+                    rowCount++;
+                }else{
+                    count += curInfo.length;
+                    buffer.append(text.substring(curInfo.position,infos.get(i+1).position));
+                }
+            }
+            if(count>0){
+                rowCount++;
+            }
+            List<Object> res = new ArrayList<>();
+            res.add(buffer.toString());
+            res.add(rowCount);
+            return res;
+        }catch(Exception e){
+            log.error("WrapText Error:" + text + " ===>" + lineLen,e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 计算可打印的高度，单位 缇   1毫米=56.7缇 1英寸=1440缇
+     * @param paperHeight 纸张高度，单位毫米
+     * @param sheet excelSheet
+     * @return
+     */
+    public static int getPrintPageHeight(int paperHeight, Sheet sheet){
+        return (int)(paperHeight*56.7-1440*(sheet.getMargin(HSSFSheet.TopMargin)+sheet.getMargin(HSSFSheet.BottomMargin)));
+    }
+}
+
+class TextInfo{
+    int position;
+    float length;
+}
+
+```

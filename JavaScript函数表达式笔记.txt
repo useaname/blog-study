@@ -1,0 +1,17 @@
+---
+date: 2016-01-06 14:12
+status: draft
+tags: 'javascript, 函数表达式'
+title: JavaScript函数表达式笔记
+---
+
+
+函数声明:
+  ```javascript
+function 函数名称(参数:可选){函数体}
+  ```
+  函数表达式:
+  ```javascript
+function 函数名称(可选)(参数:可选){函数体}  
+  ```
+  

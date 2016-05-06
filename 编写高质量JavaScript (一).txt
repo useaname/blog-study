@@ -1,0 +1,25 @@
+---
+date: 2016-03-01 20:54
+status: public
+tags: javascript
+title: '编写高质量JavaScript (一)'
+---
+
+#### 最小全局变量
+JavaScript通过函数管理作用域。在函数内部声明的变量只在这个函数内部可用。另一方面，全局变量就是在任何函数外面声明或者未声明直接使用的。
+
+访问到。你创建的每一个全部变量都成了这个全局对象的属性。```在浏览器中，方便起见，该全局对象有个附加属性叫做window，此window(通常)指向该全局对象本身。```下面的代码片段显示了如何在浏览器环境 中创建和访问的全局变量：
+```javascript
+myglobal = "hello"; // 不推荐写法
+console.log(myglobal); // "hello"
+console.log(window.myglobal); // "hello"
+console.log(window["myglobal"]); // "hello"
+console.log(this.myglobal); // "hello"
+```
+#### 全局变量问题
+全局变量的问题在于，你的JavaScript应用程序和web页面上的所有代码都共享了这些全局变量，他们住在同一个全局命名空间，所以当程序的两个不同部分定义同名但不同作用的全局变量的时候，命名冲突在所难免。
+web页面包含不是该页面开发者所写的代码也是比较常见的，例如：
+* 第三方的JavaScript库
+* 广告方的脚本代码
+* 第三方用户跟踪和分析脚本代码
+* 不同类型的小组件，标志和按钮

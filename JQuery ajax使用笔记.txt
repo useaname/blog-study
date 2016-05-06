@@ -1,0 +1,49 @@
+---
+date: 2016-02-18 20:55
+status: public
+tags: 'java,spring mvc,ajax'
+title: 'JQuery ajax使用笔记'
+---
+
+    ajax方法中,不指定```contentType```会出现http code 415
+
+```javascript
+     var param = {};
+        param.orderId = orderId;
+        param.userId = userId;
+        param.payId = payId;
+
+        $.ajax({
+            url:window.location.origin + '/bauna/order/pushOrder',
+            type: 'post',
+            dataType: 'json',
+            contentType: 'application/json',
+            data:JSON.stringify(param),
+            async: true,
+            success:function(result){
+                //do something.               
+            }
+        });
+```
+
+```java
+ @RequestMapping("pushOrder")
+    @ResponseBody
+    public Result<?> pushOrder(@RequestBody UserCreditParam param) {
+        Long orderId = param.getOrderId();
+        String payId = param.getPayId();
+        if (orderId == null) {
+            logger.error("pushOrder:orderId不能为空!");
+            return Result.wrapErrorResult("", "orderId不能为空！");
+        }
+        if("loanPay".equalsIgnoreCase(payId)){
+            UserCredit userCredit = userCreditDao.selectByUserId(param.getUserId());
+            if(!StringUtils.isNoneBlank(userCredit.getIsVerified())){
+                return Result.wrapErrorResult("", "请先审核分期付款信息！");
+            }
+        }
+        orderService.batchSetShipStatus(orderId, ShipStatusNewEnum.YXT);
+//        orderService.pushOrder(orderId);
+        return Result.wrapSuccessfulResult("ok");
+    }
+```
