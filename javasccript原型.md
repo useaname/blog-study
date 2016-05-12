@@ -1,4 +1,5 @@
 ---
+tag:javascript,prototype
 date: 2016-05-11 20:07
 status: public
 title: javascript原型
