@@ -58,3 +58,131 @@ title: javascript原型
 ```
 通过hasOwnPrototype()方法，什么时候访问真实属性，什么时候访问是原型属性就会一清二楚。调用p1.hasOwnProperty("name")时，只有当p1重写name属性后才会返回true。因为只有name才是一个实例属性，而非原型属性。
 2.原型和in操作符
+两种方式使用in操作符单独使用和在for-in循环中使用。在单独使用时，in操作符会在通过对象能够访问给定属性时返回true,<b>*无论该属性是否存在实例还是原型中。*</b>
+```javascript
+    function Person() {
+
+    }
+    Person.prototype.name = "Nic";
+    Person.prototype.age = 29;
+    Person.prototype.job = "SE";
+    Person.prototype.sayName = function () {
+        console.log(this.name);
+    }
+
+    var person1 = new Person();
+    var person2 = new Person();
+
+    console.log(person1.hasOwnProperty("name")); //false
+    console.log("name" in person1); //true
+
+    person1.name = "Grey";
+    console.log(person1.name); //来自实例
+    console.log(person1.hasOwnProperty("name")); //true
+    console.log("name" in person1); //true
+
+    console.log(person2.name); //来自原型
+    console.log(person2.hasOwnProperty("name")); //false
+    console.log("name" in person2); //true
+
+    delete  person1.name;
+    console.log(person1.name); //Nic 来自原型
+    console.log(person1.hasOwnProperty("name")); //false
+    console.log("name" in person1); //true
+```
+同时试用in和hasOwnProperty()方法判断属性是否存在于原型中:
+```javascript
+function hasPrototypeProperty(object, name) {
+        return !object.hasOwnProperty(name) && (name in object);
+    }
+```
+由于in操作符只要通过对象能够访问到的属性就返回true，hasOwnProperty()只在属性存在于实例中才返回true，因为只要in操作符返回true而hasOwnProperty()返回false，就可以确定是原型属性。
+
+```javascript
+ function Person() {
+
+    }
+    Person.prototype.name = "Nic";
+    Person.prototype.age = 29;
+    Person.prototype.job = "SE";
+    Person.prototype.sayName = function () {
+        console.log(this.name);
+    }
+
+    var person1 = new Person();
+    person1.name = "Tim";
+    var person2 = new Person();
+    
+    hasPrototypeProperty(person1, "name");  //false
+    hasPrototypeProperty(person2, "name");  //true        
+```
+在使用for-in循环中返回的是所有<b>*能够通过对象访问，可枚举的(enumerated)属性*</b>，其中既包括存在实例中的属性，也包括存在于原型中的属性。屏蔽了原型中不可枚举的属性(即将[[Enumerable]]标记为false的属性)的实例属性也会在for-in循环中返回。因为根据规定，所有开发人员定义的属性都是可枚举的---在IE8及更早的版本中例外。
+获取对象上可枚举的实例属性，可以使用ECMAScript5的Object.keys()方法。这个方法接收一个对象作为参数，返回一个包含所有可枚举属性的字符串数组。
+```javascript
+    function Person() {}
+    Person.prototype.name = "Nic";
+    Person.prototype.age = 29;
+    Person.prototype.job = "SE";
+    Person.prototype.sayName = function () {
+        console.log(this.name);
+    }
+    Object.keys(Person.prototype); //["name", "age", "job", "sayName"]
+    var person = new Person();
+    person.name = "Tim";
+    person.age = 21;
+    //person实例调用
+    Object.keys(person); //["name", "age"]
+```
+得到所有的实例属性，无论是否可被枚举。
+```javascript
+    function Person() {}
+    Person.prototype.name = "Nic";
+    Person.prototype.age = 29;
+    Person.prototype.job = "SE";
+    Person.prototype.sayName = function () {
+        console.log(this.name);
+    }
+Object.getOwnPropertyNames(Person.prototype); //["constructor", "name", "age", "job", "sayName"]
+```
+3.更简单的原型语法
+前面的例子中每添加一个属性和方法都要敲一遍Person.prototype.为减少不必要的输入，也为了从视觉上更好的封装原型功能，更常见的方法是用一个包含所有属性和方法的对象字面量来重写整个原型对象:
+```javascript
+    function Person() {}
+    Person.prototype = {
+        name : "Tim",
+        age : 29,
+        job : "SE",
+        syaName : function () {
+            console.log(this.name);
+        }
+    };
+```
+上面的代码中，将Person.prototype设置为等于一个以对象字面量形式创建的对象，最终结果相同，但有一个例外:constructor这个属性不再指向Person了。<b>*之前说过，每创建一个对象，就会同时创建prototype对象，这个对象自动获得constructor属性。*</b>而这里使用的语法，从本质上重写了默认的prototype对象，因此constructor属性也就编程了新对象的constructor属性(指向Object构造函数)，不再指向Person函数。此时尽管instanceof操作符能返回正常的结果，但通过constructor已无法确定对象类型。如下：
+```javascript
+    var friend = new Person();
+    console.log(friend instanceof Object); //true
+    console.log(friend instanceof Person); //true
+    console.log(friend.constructor == Person); //false
+    console.log(friend.constructor == Object); //true
+```
+如果在constructor的值真的很重要，可以像下面这样特意将它设置成适当的值得。
+```javascript
+    function Person() {}
+    Person.prototype = {
+        constructor : Person,
+        name : "Tim",
+        age : 29,
+        job : "SE",
+        syaName : function () {
+            console.log(this.name);
+        }
+    };
+```
+这种方式重设constructor属性会导致它的[[Enumerable]]特性设置为true。默认情况下，原生的constructor是不可枚举的，因此如果你是用兼容ECMAScript5的Javascript引擎,可以试一试Object.defineProperty().
+```javascript
+//重设构造函数,只适用ECMAScript5兼容的游览器
+    Object.defineProperty(Person.prototype, "constructor", {
+        enumerable : false,
+        value : Person
+    });
+```
