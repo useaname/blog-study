@@ -28,3 +28,33 @@ title: javascript原型
     console.log(p22.name); //Tim 来自原型
 ```
 <b>*当对对象添加一个属性时，这个属性就会屏蔽原型对象中保存的同名属性；换句话说，添加这个属性只会阻止我们访问原型中的那个属性，但不会修改那个属性。即使这个属性设置为null，也只会在实例中设置这个属性，而不会恢复其指向原型的链接。不过可以试用delete操作符可以完全删除实例属性，从而能重新访问原型中的属性。*</b>
+```javascript
+    function Person() {
+
+    }
+
+    Person.prototype.name = "Nic";
+    Person.prototype.age = 29;
+    Person.prototype.job = "SE";
+    Person.prototype.sayName = function () {
+        console.log(this.name);
+    }
+
+    var p1 = new Person();
+    var p2 = new Person();
+
+    console.log(p1.hasOwnProperty("name")); //false
+
+    p1.name = "Grey";
+    console.log(p1.name); //Grey 来自实例
+    console.log(p1.hasOwnProperty("name")); //true
+
+    console.log(p2.name); //Nic 来自原型
+    console.log(p2.hasOwnProperty("name")); //false
+    delete p1.name;
+    console.log(p1.name); //Nic 来自原型
+    console.log(p1.hasOwnProperty("name")); //false
+
+```
+通过hasOwnPrototype()方法，什么时候访问真实属性，什么时候访问是原型属性就会一清二楚。调用p1.hasOwnProperty("name")时，只有当p1重写name属性后才会返回true。因为只有name才是一个实例属性，而非原型属性。
+2.原型和in操作符
