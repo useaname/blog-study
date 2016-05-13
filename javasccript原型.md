@@ -1,4 +1,5 @@
 ---
+tag:'javascript,prototype'
 date: 2016-05-11 20:07
 status: public
 title: javascript原型
@@ -186,3 +187,33 @@ Object.getOwnPropertyNames(Person.prototype); //["constructor", "name", "age", "
         value : Person
     });
 ```
+4.原型的动态性
+由于在原型中查找值的过程是一次搜索，因此我们对原型对象所做的任何修改都能够立即从实例上反应出来---即使是先创建了实例后修改原型也照样如此。
+```javascript
+    function Person() {}
+    Person.prototype = {
+        constructor : Person,
+        name : "Tim",
+        age : 29,
+        sayName : function(){
+            console.log(this.name);
+        }
+    }
+
+    var p1 = new Person();
+    p1.sayName();
+    Person.prototype.sayHi = function(){
+        console.log(this.name + " say Hi.");
+    }
+```
+尽管可以随时为原型对象添加属性和方法，并且修改能立刻在所有对象实例中反应出来，但是如果重写整个原型对象，那么情况就不一样了。调用构造函数时会为实例添加一个指向最初原型的[[prototype]]的指针，而把原型修改为另外一个对象就等于切断了构造函数与最初原型之间的联系。<b>*实例中指针仅指向原型，而不指向构造函数。*</b>
+5.原生对象的原型
+原型模式的重要性不仅体现在创建自定义类型方面。连所有原生的引用类型，都是采用这种模式创建的。所有原生的引用类型(Object,Array,String等等)都在其构造函数的原型上定义了方法。在Array.prototype中可以找到sort方法。
+通过原型对象，不仅可以取得所有默认方法的引用，而且可以定义新方法。可以像修改自定义对象的原型一样修改原生对象的原型，因此可以随时添加方法。下面的代码给基本包装类型String添加一个名为startWith()的方法：
+```javascript
+String.prototype.starsWith = function (text) {
+        return this.indexOf(text) == 0;
+    }
+    var msg = "Hello";
+```
+6.原型对象的问题
