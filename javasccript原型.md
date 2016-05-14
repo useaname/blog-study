@@ -217,3 +217,56 @@ String.prototype.starsWith = function (text) {
     var msg = "Hello";
 ```
 6.原型对象的问题
+原型模式省略了为构造函数传递初始化参数这一环节，结果所有的实例默认情况下都将取得相同的属性值，虽然这会在某种问题上带来一些不方便，单还不是原型最大的问题最大问题是由其共享的本性导致的。
+对于包含引用类型值的属性来说，问题就比较突出了。
+```javascript
+ function Person() {
+        
+    }
+    Person.prototype = {
+        constructor: Person,
+        name : "Nic",
+        age : 29,
+        job : "SE",
+        friends: ["A","B"],
+        sayName : function () {
+            console.log(this.name);
+        }
+    }
+
+    var person1 = new Person();
+    var person2 = new Person();
+
+    person1.friends.pusp("C");
+
+    console.log(person1.friends);
+    console.log(person2.friends);
+    console.log(person1.friends == person2.friends);
+```
+6.2.4 组合试用构造函数和原型模式
+创建自定义类型最常见方式，就是组合试用构造函数与原型模式。构造函数模式用于定义实例属性，而原型模式用于定义方法和共享属性。结果每个实例都会有自己的一份实例属性的副本，但同事又共享这对方的引用，最大限度的节省内存。这种模式还支持向构造函数传递参数。可谓集两种模式之长。
+这种构造函数与原型的混成的模式，是目前ECMAScript中使用最广泛的一种创建自定义类型的方法。
+```javascript
+function Person(name, age, job) {
+        this.name = name;
+        this.age = age;
+        this.job = job;
+        this.friends = ["Shelby", "Court"];
+    }
+
+    Person.prototype = {
+        constructor : Person,
+        sayName : function(){
+            console.log(this.name);
+        }
+    }
+
+    var person1 = new Person("Tim", 29, "SE");
+    var person2 = new Person("Tom", 30, "AB");
+
+    person1.friends.push("newFriends");
+    console.log(person1.friends);
+    console.log(person2.friends);
+    console.log(person1.friends == person2.friends);
+    console.log(person1.sayName == person2.sayName);
+```
